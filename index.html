@@ -703,11 +703,12 @@ document.addEventListener('click',e=>{
     case 'addRule':{const kw=$('#ruleKw').value.trim();if(kw){S.cfg.rules.push({kw,cat:$('#ruleCat').value});saveCfg(true);render()}break}
     case 'delRule':S.cfg.rules.splice(+d.i,1);saveCfg(true);render();break;
     case 'connect':{const url=$('#gUrl').value.trim(),token=$('#gTok').value.trim();
-      if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){toast('URLは https://script.google.com/… の形です');break}
+      if(/\/macros\/echo/.test(url)||/googleusercontent\.com/.test(url)){toast('これは実行結果のURLです。「デプロイを管理」にある、/exec で終わるURLを入れてください');break}
+      if(!/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[^/?#]+\/exec$/.test(url)){toast('URLは https://script.google.com/macros/s/…/exec の形です');break}
       if(!token){toast('トークンを入れてください');break}
       const wasDemo=!remote();LS.set('gas',{url,token});
       if(wasDemo){S.tx=[];const keep=S.cfg;S.cfg=normCfg(Object.assign({},keep,{fixed:[],skip:[]}));S.cfg.categories.forEach(c=>c.budget=0);saveLocal()}
-      call('ping').then(()=>{toast('接続しました');pull()}).catch(err=>{toast('接続できません：'+err.message);setSync('err',err.message.slice(0,18))});render();break}
+      call('ping').then(()=>{toast('接続しました');pull()}).catch(err=>{const net=/Load failed|Failed to fetch|NetworkError/i.test(err.message);toast(net?'つながりません。URLと、公開設定（アクセスできるユーザー：全員）を確認してください':'接続できません：'+err.message);setSync('err',net?'接続エラー':err.message.slice(0,18))});render();break}
     case 'disconnect':{LS.set('gas',{});queue=[];LS.set('queue',[]);const dm=LS.get('demo',null)||seedDemo();S.cfg=normCfg(dm.cfg);S.tx=dm.tx.map(normTx);setSync('local');render();toast('接続を解除しました');break}
     case 'csv':{try{const b=new Blob([csv()],{type:'text/csv'});const u=URL.createObjectURL(b);const x=document.createElement('a');x.href=u;x.download='kakeibo_'+today()+'.csv';document.body.appendChild(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}catch(err){toast('書き出せませんでした')}break}
     case 'csvCopy':navigator.clipboard.writeText(csv()).then(()=>toast('CSVをコピーしました'),()=>toast('コピーできませんでした'));break;
