@@ -32,11 +32,13 @@
   --ai:#F08CA0; --ai-soft:#3A2329; --on-ai:#12161B; --rec-shadow:rgba(0,0,0,.45); --good:#4DBE8E; --warn:#E2AC43; --bad:#FF7A59; --inc:#4DBE8E;
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,button,.chip,.cat,.keys{touch-action:manipulation}
+.keys,.keys button,.cats,.opts,.who2,.tabs{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 html,body{background:var(--bg);color:var(--ink)}
 body{font-family:var(--f-body);font-size:15px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
-input,select,textarea{font:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-width:0}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--ai);outline-offset:0;border-color:transparent}
 button:focus-visible{outline:2px solid var(--ai);outline-offset:2px;border-radius:8px}
 .num{font-family:var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -183,7 +185,11 @@ svg text{fill:var(--sub);font-family:var(--f-num);font-size:10px}
 .amt .v.zero{color:var(--line)}
 .opts{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
 .opts::-webkit-scrollbar{display:none}
-.opts .sep{width:1px;background:var(--line);flex:none;margin:4px 2px}
+.who2{display:flex;gap:8px}
+.who2>*{flex:1;min-width:0}
+.who2 .seg button{padding:8px 6px;overflow:hidden;text-overflow:ellipsis}
+.links{display:flex;justify-content:center;gap:24px}
+.links .hint{text-decoration:underline;padding:4px 2px}
 .cats{display:grid;grid-template-rows:repeat(2,auto);grid-auto-flow:column;grid-auto-columns:minmax(76px,1fr);gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
 .cats::-webkit-scrollbar{display:none}
 .cat{border-radius:12px;padding:9px 4px;font-size:12.5px;background:var(--surface2);border:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:4px;white-space:nowrap}
@@ -569,13 +575,12 @@ function renderSheet(){
     <button class="iconbtn" data-act="closeSheet" aria-label="閉じる"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
   <div class="amt"><span class="expr">${/[+−]/.test(F.expr)?esc(F.expr):''}</span><span class="v num ${v?'':'zero'}">${yen(v)}</span></div>`;
   if(tpls.length)h+=`<div class="tpl">${tpls.map((t,i)=>{const c=cat(t.cat)||{};return `<button data-act="tpl" data-i="${i}"><b>${yen(t.amount)}</b>${esc(t.store||c.name)} · ${esc(t.method)}</button>`}).join('')}</div>`;
-  h+=`<div class="opts">${F.type==='out'?S.cfg.methods.map(m=>`<button class="chip" data-act="fmethod" data-v="${esc(m)}" aria-pressed="${F.method===m}">${esc(m)}</button>`).join('')+'<span class="sep"></span>':''}
-    ${F.type==='in'&&S.cfg.privateIncome?`<span class="chip" aria-pressed="true">${esc(mname(S.me))}だけに表示</span>`:['a','b'].map(id=>`<button class="chip" data-act="fpayer" data-v="${id}" aria-pressed="${F.payer===id}">${esc(mname(id))}</button>`).join('')}
-    ${F.type==='out'?`<span class="sep"></span><button class="chip" data-act="fshare" aria-pressed="${F.share==='s'}">${F.share==='s'?'共有':'個人'}</button>`:''}</div>
+  h+=F.type==='out'?`<div class="opts">${S.cfg.methods.map(m=>`<button class="chip" data-act="fmethod" data-v="${esc(m)}" aria-pressed="${F.method===m}">${esc(m)}</button>`).join('')}</div>`:'';
+  h+=`<div class="who2">${F.type==='in'&&S.cfg.privateIncome?`<span class="chip" aria-pressed="true">${esc(mname(S.me))}だけに表示</span>`:`<div class="seg" role="group" aria-label="払った人">${['a','b'].map(id=>`<button data-act="fpayer" data-v="${id}" aria-pressed="${F.payer===id}">${esc(mname(id))}</button>`).join('')}</div>`}${F.type==='out'?`<div class="seg" role="group" aria-label="共有か個人か">${[['s','共有'],['p','個人']].map(([k,l])=>`<button data-act="fshare" data-v="${k}" aria-pressed="${F.share===k}">${l}</button>`).join('')}</div>`:''}</div>
   <div class="cats">${cats.map(c=>`<button class="cat" data-act="fcat" data-v="${c.id}" aria-pressed="${F.cat===c.id}"><i style="background:${c.color}"></i>${esc(c.name)}</button>`).join('')}</div>`;
   h+=F.more?`<div class="more"><div class="grid2"><input id="fStore" placeholder="店名" value="${esc(F.store)}" data-act="fstore"><input id="fTags" placeholder="タグ（カンマ区切り）" value="${esc(F.tags)}" data-act="ftags"></div><input id="fMemo" placeholder="メモ" value="${esc(F.memo)}" data-act="fmemo"></div>`
-    :`<button class="hint" data-act="fmore" style="text-decoration:underline">店名・メモ・タグを追加</button>`;
-  if(F.type==='out')h+=`<button class="hint" data-act="fsplit" style="text-decoration:underline">1回の支払いを分割する</button>`;
+    :'';
+  h+=`<div class="links">${F.more?'':`<button class="hint" data-act="fmore">店名・メモ・タグ</button>`}${F.type==='out'?`<button class="hint" data-act="fsplit">分割する</button>`:''}</div>`;
   h+=`<div class="keys">${['7','8','9','del','4','5','6','+','1','2','3','save','00','0','C'].map(k=>k==='save'?`<button class="save" data-act="fsave">${F.edit?'更新':'保存'}</button>`
      :k==='del'?`<button class="op" data-key="del" aria-label="1文字消す">⌫</button>`:k==='+'?`<button class="op" data-key="+">＋</button>`:k==='C'?`<button class="op" data-key="C">C</button>`:`<button data-key="${k}">${k}</button>`).join('')}</div>`;
   h+=F.edit?`<button class="btn danger" data-act="fdel">この記録を削除</button>`:(S.quick&&!F.edit?'<div class="hint">金額を入れてカテゴリをタップすると保存されます</div>':'');
@@ -720,7 +725,7 @@ document.addEventListener('click',e=>{
     case 'ftype':F.type=d.v;F.cat='';if(d.v==='in'&&S.cfg.privateIncome)F.payer=S.me;renderSheet();break;
     case 'fmethod':F.method=d.v;renderSheet();break;
     case 'fpayer':F.payer=d.v;renderSheet();break;
-    case 'fshare':F.share=F.share==='s'?'p':'s';renderSheet();break;
+    case 'fshare':F.share=d.v||(F.share==='s'?'p':'s');renderSheet();break;
     case 'fmore':F.more=true;renderSheet();setTimeout(()=>$('#fStore')&&$('#fStore').focus(),30);break;
     case 'fcat':syncMore();F.cat=d.v;if(S.quick&&!F.edit&&evalExpr(F.expr)>0)saveF();else renderSheet();break;
     case 'tpl':{const t=templates()[+d.i];if(!t)break;F=Object.assign(F,{cat:t.cat,expr:String(t.amount),method:t.method,store:t.store,share:t.share});saveF();break}
