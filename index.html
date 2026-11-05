@@ -315,8 +315,9 @@ const nz=s=>String(s==null?'':s).normalize('NFKC').toLowerCase();
 const isAsk=t=>{const s=nz(t.store);return !!s&&(S.cfg.askStores||[]).some(k=>k&&s.includes(nz(k)))};
 const mname=id=>(S.cfg.members.find(m=>m.id===id)||{name:'?'}).name;
 const other=id=>id==='a'?'b':'a';
-const pass=(t,f)=>f==='all'||(f==='shared'&&t.share==='s')||(f==='mine'&&t.share==='p'&&t.payer===S.me)||(f==='theirs'&&t.share==='p'&&t.payer!==S.me);
-const vis=t=>!(S.cfg.privateIncome&&t.type==='in'&&t.payer!==S.me);
+const pass=(t,f)=>f==='all'||(f==='shared'&&t.share==='s')||(f==='mine'&&t.share==='p'&&t.payer===S.me);
+// 収入（設定による）と、相手の個人の支出は、本人の端末にしか表示しない
+const vis=t=>!(S.cfg.privateIncome&&t.type==='in'&&t.payer!==S.me)&&!(t.type==='out'&&t.share==='p'&&t.payer!==S.me);
 const monthTx=(m,f='all')=>S.tx.filter(t=>ym(t.date)===m&&vis(t)&&pass(t,f));
 const outs=a=>a.filter(t=>t.type==='out');
 
@@ -408,7 +409,7 @@ function txRow(t){
   const c=cat(t.cat)||{name:'未分類',color:'#8B95A5'};
   const title=t.type==='settle'?'精算 '+mname(t.payer)+' → '+mname(other(t.payer)):(t.store||c.name);
   const meta=[t.date.slice(5).replace('-','/'),t.store?c.name:'',t.method,mname(t.payer)].filter(Boolean).join(' · ');
-  const tag=t.type==='out'?(t.share==='s'?'<span class="pill sh">共有</span>':`<span class="pill ${t.payer===S.me?'me':'th'}">個人</span>`):'';
+  const tag=t.type==='out'?(t.share==='s'?'<span class="pill sh">共有</span>':'<span class="pill me">個人</span>'):'';
   const auto=t.src==='fixed'?' · 固定費':(t.src==='applepay'||t.src==='mail')?' · 自動':'';
   const tent=(t.tags||[]).includes('仮')?'<span class="pill t">仮</span>':'';
   const neg=t.amount<0?'<span class="pill p">返金</span>':'';
@@ -434,10 +435,10 @@ function vHome(){
     if(cur){const dl=daysIn(m)-(+td.slice(8))+1;h+=`<div style="text-align:right"><div class="lbl">今日から1日あたり</div><div class="v num ${left<0?'over':''}">${yen(Math.max(0,left)/dl)}</div></div>`}
     h+=`</div><div class="bar" title="予算消化"><i class="${r>1?'bad':r>p+.08?'warn':''}" style="width:${Math.min(100,r*100)}%"></i>${cur?`<s style="left:${p*100}%"></s>`:''}</div>`}
   h+='</section>';
-  if(spent>0){const parts=[['shared','共有',out.filter(t=>t.share==='s'),'#3B7BE8'],['mine',mname(S.me)+'の個人',out.filter(t=>t.share==='p'&&t.payer===S.me),'#2FA67F'],['theirs',mname(other(S.me))+'の個人',out.filter(t=>t.share==='p'&&t.payer!==S.me),'#D2557B']].map(([k,l,a,c])=>({k,l,c,v:sum(a),n:a.length}));
+  if(spent>0){const parts=[['shared','共有',out.filter(t=>t.share==='s'),'#3B7BE8'],['mine',mname(S.me)+'の個人',out.filter(t=>t.share==='p'&&t.payer===S.me),'#2FA67F']].map(([k,l,a,c])=>({k,l,c,v:sum(a),n:a.length}));
     h+=`<section class="card"><h2>共有と個人</h2><div class="sp" role="img" aria-label="共有と個人の割合">${parts.filter(p=>p.v>0).map(p=>`<i style="width:${p.v/spent*100}%;background:${p.c}"></i>`).join('')}</div>
-    <div class="sp3">${parts.map(p=>`<button data-act="goSplit" data-v="${p.k}"><small><span class="cdot" style="background:${p.c}"></span>${esc(p.k==='shared'?'共有':p.l.replace(/の個人$/,''))}</small><b class="num">${yen(p.v)}</b><em>${p.k==='shared'?'':'個人 · '}${Math.round(p.v/spent*100)}%</em></button>`).join('')}</div></section>`}
-  const inbox=S.tx.filter(t=>t.type==='out'&&!t.cat);
+    <div class="sp3" style="grid-template-columns:repeat(2,1fr)">${parts.map(p=>`<button data-act="goSplit" data-v="${p.k}"><small><span class="cdot" style="background:${p.c}"></span>${esc(p.k==='shared'?'共有':p.l.replace(/の個人$/,''))}</small><b class="num">${yen(p.v)}</b><em>${p.k==='shared'?'':'個人 · '}${Math.round(p.v/spent*100)}%</em></button>`).join('')}</div></section>`}
+  const inbox=S.tx.filter(t=>t.type==='out'&&!t.cat&&vis(t));
   if(inbox.length){h+=`<section class="card inbox"><h2>未分類 ${inbox.length}件<span style="font-weight:400">タップで分類</span></h2>`+
     inbox.slice(0,5).map(t=>`<div class="ibx"><div class="t"><span>${esc(t.store||'（店名なし）')}${isAsk(t)?'<span class="pill">中身を確認</span>':''}<small style="color:var(--sub)"> ${t.date.slice(5).replace('-','/')} ${esc(t.method)}</small></span><b class="num">${yen(t.amount)}</b></div>
     <div class="hscroll">${topCats('out',8).map(c=>`<button class="chip" data-act="classify" data-id="${esc(t.id)}" data-cat="${c.id}"><span class="cdot" style="background:${c.color}"></span>${esc(c.name)}</button>`).join('')}<button class="chip" data-act="edit" data-id="${esc(t.id)}">その他…</button><button class="chip" data-act="splitTx" data-id="${esc(t.id)}">分割</button></div></div>`).join('')+'</section>'}
@@ -471,7 +472,7 @@ function settleCard(m){
 
 function vList(){
   const m=S.month;let h=`<div class="seg" role="group"><button data-act="listMode" data-v="list" aria-pressed="${S.listMode==='list'}">リスト</button><button data-act="listMode" data-v="cal" aria-pressed="${S.listMode==='cal'}">カレンダー</button></div>
-  <div class="hscroll">${[['all','すべて'],['shared','共有'],['mine',mname(S.me)+'の個人'],['theirs',mname(other(S.me))+'の個人']].map(([k,l])=>`<button class="chip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)} <b class="num">${yen(sum(outs(monthTx(m,k))))}</b></button>`).join('')}</div>`;
+  <div class="hscroll">${[['all','すべて'],['shared','共有'],['mine',mname(S.me)+'の個人']].map(([k,l])=>`<button class="chip" data-act="filter" data-v="${k}" aria-pressed="${S.filter===k}">${esc(l)} <b class="num">${yen(sum(outs(monthTx(m,k))))}</b></button>`).join('')}</div>`;
   let tx=monthTx(m,S.filter);
   if(S.listMode==='cal'){
     const by={};outs(tx).forEach(t=>{by[t.date]=(by[t.date]||0)+t.amount});
@@ -504,7 +505,7 @@ function vStats(){
   const m=S.month,f=S.statF,pm=addM(m,-1);
   const tx=monthTx(m,f),out=outs(tx),total=sum(out),inc=sum(tx.filter(t=>t.type==='in'));
   const pout=outs(monthTx(pm,f)),ptotal=sum(pout);
-  let h=`<div class="seg">${[['all','全体'],['shared','共有'],['mine',mname(S.me)+'の個人'],['theirs',mname(other(S.me))+'の個人']].map(([k,l])=>`<button data-act="statF" data-v="${k}" aria-pressed="${f===k}">${esc(l)}</button>`).join('')}</div>`;
+  let h=`<div class="seg">${[['all','全体'],['shared','共有'],['mine',mname(S.me)+'の個人']].map(([k,l])=>`<button data-act="statF" data-v="${k}" aria-pressed="${f===k}">${esc(l)}</button>`).join('')}</div>`;
   const diff=total-ptotal;
   h+=`<section class="card"><div class="kpis"><div><small>支出</small><b class="num">${yen(total)}</b></div><div><small>収入</small><b class="num">${yen(inc)}</b></div><div><small>先月比</small><b class="num ${diff>0?'up':'down'}">${ptotal?(diff>0?'+':'')+yen(diff):'—'}</b></div></div></section>`;
   // category
@@ -701,7 +702,7 @@ function fxModal(id){
 /* ========== CSV ========== */
 function csv(){const head=['日付','種類','金額','カテゴリ','支払方法','払った人','区分','店名','メモ','タグ'];
   const q=s=>'"'+String(s==null?'':s).replace(/"/g,'""')+'"';
-  return '﻿'+[head.join(',')].concat(S.tx.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(t=>[t.date,{out:'支出',in:'収入',settle:'精算'}[t.type],t.amount,(cat(t.cat)||{}).name||'',t.method,mname(t.payer),t.share==='s'?'共有':'個人',t.store,t.memo,(t.tags||[]).join(' ')].map(q).join(','))).join('\n')}
+  return '﻿'+[head.join(',')].concat(S.tx.filter(vis).sort((a,b)=>a.date.localeCompare(b.date)).map(t=>[t.date,{out:'支出',in:'収入',settle:'精算'}[t.type],t.amount,(cat(t.cat)||{}).name||'',t.method,mname(t.payer),t.share==='s'?'共有':'個人',t.store,t.memo,(t.tags||[]).join(' ')].map(q).join(','))).join('\n')}
 
 /* ========== toast ========== */
 let tt;
