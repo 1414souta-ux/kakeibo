@@ -565,8 +565,8 @@ function vSet(){
   h+=`<section class="card"><h2>カード通知メールの取り込み</h2><p class="help" style="margin:0 0 8px">三井住友カードの利用通知メールから、数分おきに自動で記録します（返品は元の記録を打ち消します）。いますぐ反映したいときは、下のボタンを押してください。</p><button class="btn sm ghost" data-act="mailNow">いま取り込む</button></section>`;
   h+=`<section class="card"><h2>支払方法</h2><div class="chips">${c.methods.map((x,i)=>`<button class="chip" data-act="delMethod" data-i="${i}" aria-label="${esc(x)}を削除">${esc(x)} <span style="color:var(--sub)">×</span></button>`).join('')}</div>
    <div style="display:flex;gap:8px;margin-top:10px"><input id="newMethod" placeholder="例：楽天カード"><button class="btn sm" data-act="addMethod">追加</button></div></section>`;
-  h+=`<section class="card"><h2>店名で自動分類</h2><p class="help" style="margin:0 0 8px">ショートカットやApple Payから届いた記録は、店名にこの言葉が入っていると自動でカテゴリが付きます。未分類を手で分類すると自動で追加されます。</p><div class="set">${c.rules.map((r,i)=>{const cc=cat(r.cat)||{name:'?',color:'#888'};return `<div class="r"><span>${esc(r.kw)}<small>→ ${esc(cc.name)}</small></span><button class="iconbtn" data-act="delRule" data-i="${i}" aria-label="削除">×</button></div>`}).join('')}</div>
-   <div style="display:flex;gap:8px;margin-top:10px"><input id="ruleKw" placeholder="店名の一部"><select id="ruleCat" style="width:8.5em">${outC.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select><button class="btn sm" data-act="addRule">追加</button></div></section>`;
+  h+=`<section class="card"><h2>店名で自動分類</h2><p class="help" style="margin:0 0 8px">ショートカットやApple Payから届いた記録は、店名にこの言葉が入っていると自動でカテゴリが付きます。右のボタンで、その店を「共有」「個人」のどちらで記録するかも決められます（「初期値」は、上の「ショートカットからの記録」の設定に従います）。未分類を手で分類すると自動で追加されます。</p><div class="set">${c.rules.map((r,i)=>{const cc=cat(r.cat)||{name:'?',color:'#888'};return `<div class="r"><span>${esc(r.kw)}<small>→ ${esc(cc.name)}</small></span><button class="chip" data-act="ruleShare" data-i="${i}" aria-label="共有か個人かを切り替え">${r.share==='s'?'共有':r.share==='p'?'個人':'初期値'}</button><button class="iconbtn" data-act="delRule" data-i="${i}" aria-label="削除">×</button></div>`}).join('')}</div>
+   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><input id="ruleKw" placeholder="店名の一部" style="flex:1 1 100%"><select id="ruleCat" style="flex:1;min-width:0">${outC.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select><select id="ruleShare" style="width:7.5em"><option value="">初期値</option><option value="s">共有</option><option value="p">個人</option></select><button class="btn sm" data-act="addRule">追加</button></div></section>`;
   h+=`<section class="card" id="setup"><h2>データ連携（ふたりで同期）</h2><div class="stack">
     <label class="field">GAS ウェブアプリのURL<input id="gUrl" value="${esc(g.url||'')}" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off"></label>
     <label class="field">トークン<input id="gTok" value="${esc(g.token||'')}" placeholder="setup の実行ログに出た文字列" autocomplete="off"></label>
@@ -637,7 +637,8 @@ function saveF(){
 }
 function syncMore(){if(!F)return;['Store','Memo','Tags'].forEach(k=>{const el=$('#f'+k);if(el)F[k.toLowerCase()]=el.value})}
 function learnRule(t){if(!t.store||isAsk(t))return;const kw=t.store.trim();if(S.cfg.rules.some(r=>kw.includes(r.kw)))return;
-  S.cfg.rules.push({kw,cat:t.cat});saveCfg(true);return true}
+  const r={kw,cat:t.cat};if(t.type==='out'&&t.share&&t.share!==S.cfg.defaultShare)r.share=t.share; // 初期値と違う区分で分類したら、その区分も覚える
+  S.cfg.rules.push(r);saveCfg(true);return true}
 
 /* OCR */
 async function doOcr(file){
@@ -741,7 +742,8 @@ document.addEventListener('click',e=>{
     case 'fxEdit':fxModal(d.id);break;
     case 'addMethod':{const v=$('#newMethod').value.trim();if(v&&S.cfg.methods.indexOf(v)<0){S.cfg.methods.push(v);saveCfg(true);render()}break}
     case 'delMethod':S.cfg.methods.splice(+d.i,1);saveCfg(true);render();break;
-    case 'addRule':{const kw=$('#ruleKw').value.trim();if(kw){S.cfg.rules.push({kw,cat:$('#ruleCat').value});saveCfg(true);render()}break}
+    case 'addRule':{const kw=$('#ruleKw').value.trim();if(kw){const r={kw,cat:$('#ruleCat').value},sh=$('#ruleShare').value;if(sh)r.share=sh;S.cfg.rules.push(r);saveCfg(true);render()}break}
+    case 'ruleShare':{const r=S.cfg.rules[+d.i];if(r){const nx={'':'s',s:'p',p:''}[r.share||''];if(nx)r.share=nx;else delete r.share;saveCfg(true);render()}break}
     case 'delRule':S.cfg.rules.splice(+d.i,1);saveCfg(true);render();break;
     case 'connect':{const url=$('#gUrl').value.trim(),token=$('#gTok').value.trim();
       if(/\/macros\/echo/.test(url)||/googleusercontent\.com/.test(url)){toast('これは実行結果のURLです。「デプロイを管理」にある、/exec で終わるURLを入れてください');break}
