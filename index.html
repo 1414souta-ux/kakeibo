@@ -103,6 +103,12 @@ button:focus-visible{outline:2px solid var(--ai);outline-offset:2px;border-radiu
 .sp3 small{color:var(--sub);font-size:11.5px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sp3 b{font-size:15px}
 .sp3 em{font-style:normal;font-size:11px;color:var(--sub)}
+.ibh{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface2);border-radius:12px;padding:10px 12px}
+.ibh small{display:block;color:var(--sub);font-size:12px;margin-top:2px}
+.ibh .num{font-size:18px;flex:none}
+.catg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.catg .cat{flex-direction:row;justify-content:flex-start;padding:11px 9px;font-size:13px;gap:8px;white-space:normal;text-align:left;line-height:1.2;min-width:0}
+.catg .cat i{flex:none;width:14px;height:14px;border-radius:5px}
 .tent{border:1.5px solid var(--warn);border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
 .tent span{font-size:12.5px;color:var(--sub)}
 .tent .trow{display:flex;gap:8px;align-items:center}.tent .trow input{flex:1;min-width:0}
@@ -442,9 +448,10 @@ function vHome(){
     h+=`<section class="card"><h2>共有と個人</h2><div class="sp" role="img" aria-label="共有と個人の割合">${parts.filter(p=>p.v>0).map(p=>`<i style="width:${p.v/spent*100}%;background:${p.c}"></i>`).join('')}</div>
     <div class="sp3" style="grid-template-columns:repeat(2,1fr)">${parts.map(p=>`<button data-act="goSplit" data-v="${p.k}"><small><span class="cdot" style="background:${p.c}"></span>${esc(p.k==='shared'?'共有':p.l.replace(/の個人$/,''))}</small><b class="num">${yen(p.v)}</b><em>${p.k==='shared'?'':'個人 · '}${Math.round(p.v/spent*100)}%</em></button>`).join('')}</div></section>`}
   const inbox=S.tx.filter(t=>t.type==='out'&&!t.cat&&vis(t));
-  if(inbox.length){h+=`<section class="card inbox"><h2>未分類 ${inbox.length}件<span style="font-weight:400">タップで分類</span></h2>`+
-    inbox.slice(0,5).map(t=>`<div class="ibx"><div class="t"><span>${esc(t.store||'（店名なし）')}${isAsk(t)?'<span class="pill">中身を確認</span>':''}<small style="color:var(--sub)"> ${t.date.slice(5).replace('-','/')} ${esc(t.method)}</small></span><b class="num">${yen(t.amount)}</b></div>
-    <div class="hscroll">${topCats('out',8).map(c=>`<button class="chip" data-act="classify" data-id="${esc(t.id)}" data-cat="${c.id}"><span class="cdot" style="background:${c.color}"></span>${esc(c.name)}</button>`).join('')}<button class="chip" data-act="edit" data-id="${esc(t.id)}">その他…</button><button class="chip" data-act="splitTx" data-id="${esc(t.id)}">分割</button></div></div>`).join('')+'</section>'}
+  if(inbox.length){h+=`<section class="card inbox"><h2>未分類 ${inbox.length}件</h2>`+
+    inbox.slice(0,3).map(t=>`<div class="ibx"><div class="t"><span>${esc(t.store||'（店名なし）')}${isAsk(t)?'<span class="pill">中身を確認</span>':''}<small style="color:var(--sub)"> ${t.date.slice(5).replace('-','/')} ${esc(t.method)}</small></span><b class="num">${yen(t.amount)}</b></div></div>`).join('')+
+    (inbox.length>3?`<div class="hint" style="text-align:left">ほか${inbox.length-3}件</div>`:'')+
+    `<button class="btn" style="width:100%;margin-top:10px" data-act="ibxOpen">未分類を確認する</button></section>`}
   const tentL=S.tx.filter(t=>t.type==='out'&&vis(t)&&(t.tags||[]).includes('仮')).sort((a,b)=>a.date.localeCompare(b.date));
   if(tentL.length){h+=`<section class="card"><h2>仮の支出 ${tentL.length}件<span style="font-weight:400">タップして月を決める</span></h2><div class="txl">${tentL.slice(0,5).map(txRow).join('')}</div>
     <div class="hint" style="text-align:left;margin-top:6px">先払い・予約の店は「仮」で入ります。引き落とし月に合わせて決めるか、そのままなら確定してください。${tentL.length>5?`（ほか${tentL.length-5}件は一覧から検索「仮」）`:''}</div></section>`}
@@ -677,7 +684,20 @@ function drawSplit(){
 /* ========== modals ========== */
 function modal(html){$('#modalRoot').innerHTML=`<div class="modal" data-act="mbg"><div class="box" role="dialog" aria-modal="true">${html}</div></div>`}
 function closeModal(){$('#modalRoot').innerHTML=''}
-let M=null;
+let M=null,Q=null;
+/* 未分類をまとめて確認：カテゴリを全部並べて、タップした時点で分類→次の1件へ */
+const ibxList=()=>S.tx.filter(t=>t.type==='out'&&!t.cat&&vis(t));
+function ibxOpen(){Q={ids:ibxList().map(t=>t.id),pos:0,cur:'',share:'s'};ibxDraw()}
+function ibxDraw(){
+  let t=null;
+  while(Q.pos<Q.ids.length){const x=S.tx.find(y=>y.id===Q.ids[Q.pos]);if(x&&!x.cat){t=x;break}Q.pos++}
+  if(!t){closeModal();render();toast(ibxList().length?'「あとで」にしたものが残っています':'未分類はありません');return}
+  if(Q.cur!==t.id){Q.cur=t.id;Q.share=t.share||'s'}
+  modal(`<h3>未分類を確認<small style="font-weight:400;color:var(--sub);font-size:13px"> ${Q.pos+1} / ${Q.ids.length}</small></h3>
+  <div class="ibh"><div><b>${esc(t.store||'（店名なし）')}</b>${isAsk(t)?' <span class="pill">中身を確認</span>':''}<small>${t.date.slice(5).replace('-','/')} · ${esc(t.method)}</small></div><b class="num">${yen(t.amount)}</b></div>
+  <div class="catg">${topCats('out').map(c=>`<button class="cat" data-act="qCat" data-cat="${c.id}"><i style="background:${c.color}"></i>${esc(c.name)}</button>`).join('')}</div>
+  <div class="who2"><div class="seg" role="group" aria-label="共有か個人か">${[['s','共有'],['p','個人']].map(([k,l])=>`<button data-act="qShare" data-v="${k}" aria-pressed="${Q.share===k}">${l}</button>`).join('')}</div></div>
+  <div class="acts"><button class="btn ghost sm" data-act="splitTx" data-id="${esc(t.id)}">分割</button><button class="btn ghost sm" data-act="qSkip">あとで</button><span style="flex:1"></span><button class="btn ghost" data-act="mClose">閉じる</button></div>`)}
 const nextColor=()=>{const used=new Set(S.cfg.categories.map(c=>c.color));return PALETTE.find(p=>!used.has(p))||PALETTE[S.cfg.categories.length%PALETTE.length]};
 function catModal(id,type){
   const c=id?cat(id):{id:'c'+uid(),name:'',color:nextColor(),type:type||'out',budget:0,isNew:true};M=Object.assign({},c);
@@ -776,6 +796,11 @@ document.addEventListener('click',e=>{
     case 'fdel':{const id=F.id;const bak=S.tx.find(x=>x.id===id);delTx(id);closeSheet();render();toast('削除しました',()=>{addTx(bak);if(id.indexOf('fx_')===0){S.cfg.skip=S.cfg.skip.filter(x=>x!==id);saveCfg(true)}render()});break}
     case 'ocr':$('#ocrFile').click();break;
     case 'fsplit':splitModal();break;
+    case 'ibxOpen':ibxOpen();break;
+    case 'qShare':Q.share=d.v;ibxDraw();break;
+    case 'qSkip':Q.pos++;ibxDraw();break;
+    case 'qCat':{const t=S.tx.find(x=>x.id===Q.cur);if(!t)break;t.cat=d.cat;t.share=Q.share||t.share;updTx(t);const learned=learnRule(t);Q.pos++;render();
+      toast(learned?`次から「${t.store}」は${cat(d.cat).name}に自動で分類します`:'分類しました');ibxDraw();break}
     case 'splitTx':{const t=S.tx.find(x=>x.id===d.id);if(t){openSheet(t);splitModal()}break}
     case 'sAdd':if(M.rows.length<6){M.rows.push({cat:'',amount:''});drawSplit()}break;
     case 'sFill':{const i=+d.i;const others=M.rows.reduce((s,r,j)=>j===i?s:s+(+r.amount||0),0);const v=M.total-others;if(v>0){M.rows[i].amount=String(v);drawSplit()}break}
