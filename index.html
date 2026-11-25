@@ -157,6 +157,13 @@ button:focus-visible{outline:2px solid var(--ai);outline-offset:2px;border-radiu
 .legend{flex:1;min-width:180px;display:flex;flex-direction:column;gap:7px;font-size:13px}
 .legend div{display:flex;align-items:center;gap:8px}
 .legend span:nth-child(2){flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.legend button{display:flex;align-items:center;gap:8px;width:100%;padding:3px 6px;margin:0 -6px;background:none;border:0;border-radius:8px;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.legend button[aria-pressed=true]{background:var(--surface2);font-weight:600}
+.legend button span:nth-child(2){flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.catdet .grp{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px;font-size:13px}
+.catdet .grp div{display:flex;gap:8px;align-items:baseline}
+.catdet .grp span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catdet .grp small{color:var(--sub)}
 .legend .d{font-size:11px;width:5.2em;text-align:right}
 .up{color:var(--bad)} .down{color:var(--good)}
 .hbars{display:flex;flex-direction:column;gap:10px;font-size:13px}
@@ -313,7 +320,7 @@ function normCfg(c){const d=defaultCfg();const ver=c&&c.v||1;c=Object.assign({},
   c.v=2;return c}
 
 /* ========== state ========== */
-const S={cfg:null,tx:[],month:ym(today()),view:'home',listMode:'list',filter:'all',q:'',calDay:null,statF:'all',me:'a',quick:true};
+const S={cfg:null,tx:[],month:ym(today()),view:'home',listMode:'list',filter:'all',q:'',calDay:null,statF:'all',statCat:null,me:'a',quick:true};
 let queue=LS.get('queue',[]),flushing=false;
 const gas=()=>LS.get('gas',{})||{};
 const remote=()=>!!gas().url;
@@ -521,8 +528,20 @@ function vStats(){
   // category
   const byc={};out.forEach(t=>{byc[t.cat]=(byc[t.cat]||0)+t.amount});const pbyc={};pout.forEach(t=>{pbyc[t.cat]=(pbyc[t.cat]||0)+t.amount});
   const parts=Object.keys(byc).map(id=>{const c=cat(id)||{name:'未分類',color:'#8B95A5'};return{id,name:c.name,color:c.color,v:byc[id],d:byc[id]-(pbyc[id]||0)}}).sort((a,b)=>b.v-a.v);
-  h+=`<section class="card"><h2>カテゴリ別</h2>${total?`<div class="donut">${donut(parts.filter(p=>p.v>0),total)}<div class="legend">${parts.map(p=>`<div><span class="cdot" style="background:${p.color}"></span><span>${esc(p.name)}</span><span class="num">${yen(p.v)}</span><span class="num d ${p.d>0?'up':'down'}">${p.d>0?'+':''}${Math.round(p.v/total*100)}%</span></div>`).join('')}</div></div>
-   <div class="hint" style="text-align:left;margin-top:8px">右端は支出に占める割合（赤は先月より増えたカテゴリ）</div>`:'<div class="empty">この月の支出はまだありません</div>'}</section>`;
+  h+=`<section class="card"><h2>カテゴリ別</h2>${total?`<div class="donut">${donut(parts.filter(p=>p.v>0),total)}<div class="legend">${parts.map(p=>`<button data-act="statCat" data-v="${esc(p.id)}" aria-pressed="${S.statCat===p.id}"><span class="cdot" style="background:${p.color}"></span><span>${esc(p.name)}</span><span class="num">${yen(p.v)}</span><span class="num d ${p.d>0?'up':'down'}">${p.d>0?'+':''}${Math.round(p.v/total*100)}%</span></button>`).join('')}</div></div>
+   <div class="hint" style="text-align:left;margin-top:8px">右端は支出に占める割合（赤は先月より増えたカテゴリ）。カテゴリをタップすると、今月の対象の支出が見られます</div>`:'<div class="empty">この月の支出はまだありません</div>'}</section>`;
+  // category detail（選んだカテゴリの今月の中身）
+  if(S.statCat!=null){
+    const sel=parts.find(p=>p.id===S.statCat);
+    if(!sel)S.statCat=null;
+    else{
+      const items=out.filter(t=>String(t.cat)===S.statCat).sort((a,b)=>b.date.localeCompare(a.date));
+      const gr={};items.forEach(t=>{const k=t.store||'（店名なし）';(gr[k]=gr[k]||{n:0,v:0});gr[k].n++;gr[k].v+=t.amount});
+      const gk=Object.keys(gr).sort((a,b)=>gr[b].v-gr[a].v);
+      h+=`<section class="card catdet"><h2><span><span class="cdot" style="background:${sel.color}"></span> ${esc(sel.name)}の${Number(m.slice(5))}月の支出</span><button data-act="statCat" data-v="" aria-label="閉じる">閉じる</button></h2>
+      <div class="kpis"><div><small>合計</small><b class="num">${yen(sel.v)}</b></div><div><small>件数</small><b class="num">${items.length}件</b></div><div><small>先月比</small><b class="num ${sel.d>0?'up':'down'}">${pbyc[S.statCat]?(sel.d>0?'+':'')+yen(sel.d):'—'}</b></div></div>
+      <div class="grp">${gk.map(k=>`<div><span>${esc(k)}</span><small>${gr[k].n}回</small><b class="num">${yen(gr[k].v)}</b></div>`).join('')}</div>
+      <div class="txl">${items.map(txRow).join('')}</div></section>`}}
   // 6 months
   const ms=[];for(let k=5;k>=0;k--)ms.push(addM(m,-k));
   const vals=ms.map(x=>sum(outs(monthTx(x,f))));const incs=ms.map(x=>sum(monthTx(x,f).filter(t=>t.type==='in')));
@@ -756,6 +775,7 @@ document.addEventListener('click',e=>{
     case 'goSplit':S.filter=d.v;S.listMode='list';S.view='list';render();window.scrollTo(0,0);break;
     case 'calDay':S.calDay=S.calDay===d.d?null:d.d;render();break;
     case 'statF':S.statF=d.v;render();break;
+    case 'statCat':S.statCat=(d.v&&S.statCat!==d.v)?d.v:null;render();break;
     case 'me':S.me=d.v;LS.set('me',d.v);render();if(remote())pull();break;
     case 'privInc':S.cfg.privateIncome=!S.cfg.privateIncome;saveCfg(true);render();if(remote())setTimeout(pull,800);break;
     case 'theme':S.theme=d.v;LS.set('theme',d.v);applyTheme();render();break;
